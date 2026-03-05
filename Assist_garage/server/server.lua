@@ -1,9 +1,11 @@
-ESX = nil
+local ESX = exports['es_extended'] and exports['es_extended']:getSharedObject() or nil
 local ResourceName = GetCurrentResourceName()
+
 CreateThread(function()
+    if ESX then return end
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-        Wait(0)
+        Wait(200)
     end
 end)
 
@@ -107,7 +109,10 @@ AddEventHandler(ResourceName..'::modifyDamage', function(plate, damage)
     })
 end)
 
-ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
+CreateThread(function()
+    while not ESX do Wait(200) end
+
+    ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
     local xPlayer = getPlayer(src)
     if not xPlayer then cb(false) return end
     local cost = tonumber(Config.poundCost or 0) or 0
@@ -125,4 +130,6 @@ ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
     else
         cb(false)
     end
+end)
+
 end)
