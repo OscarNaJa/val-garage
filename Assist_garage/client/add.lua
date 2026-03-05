@@ -2,6 +2,38 @@ local ResourceName = GetCurrentResourceName()
 local ESX = exports['es_extended']:getSharedObject()
 local allowedDimensions = Config.DimensionsAllow -- มิติที่ต้องการเช็ค
 
+local function getCurrentDimension()
+    if GetResourceState('Assist_Setdimen') ~= 'started' then
+        return 0
+    end
+
+    local ok, dim = pcall(function()
+        return exports['Assist_Setdimen']:GetDimension()
+    end)
+
+    if ok and type(dim) == 'number' then
+        return dim
+    end
+
+    return 0
+end
+
+local function getWhitelistDimensions()
+    if GetResourceState('Assist_Setdimen') ~= 'started' then
+        return Config.WhitelistDimen or {}
+    end
+
+    local ok, whitelist = pcall(function()
+        return exports['Assist_Setdimen']:GetWhitelistDimen()
+    end)
+
+    if ok and type(whitelist) == 'table' then
+        return whitelist
+    end
+
+    return Config.WhitelistDimen or {}
+end
+
 local locationIndex = {}
 local locationPropspawn = {}
 for id = 1, #Config.garageDetail do
@@ -578,7 +610,7 @@ Citizen.CreateThread(function()
 
         -- ====== deposit zone / ghost logic ======
         local currentDepositMarker, depositDistance = GetClosestMarker(playerCoords, DepositlocationDetailIndex)
-        local mydimen = exports['Assist_Setdimen']:GetDimension()
+        local mydimen = getCurrentDimension()
         if not isStoryDimension(mydimen) then
             if currentDepositMarker and depositDistance < 150.0 then
                 local cfg = Config.depositvehicle[currentDepositMarker]
@@ -767,7 +799,7 @@ Citizen.CreateThread(function()
                     local myJob = (PlayerData and PlayerData.job and PlayerData.job.name) or nil
                     local reqJob = Config.garageDetail[lastDeleteMarker].job
                     local delradius = Config.garageDetail[lastDeleteMarker].DelRadius or Config.DeleteMarker.x
-                    if Vdist(coords, Config.garageDetail[lastDeleteMarker].deletelocation) <= delradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                    if Vdist(coords, Config.garageDetail[lastDeleteMarker].deletelocation) <= delradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
 
                         if not hasJob(reqJob, myJob) then
                             goto END
@@ -824,7 +856,7 @@ Citizen.CreateThread(function()
                     local gcfg   = Config.garageDetail[lastGarageMarker]
                     local gpos   = gcfg.location
                     local gradius= gcfg.Radius or Config.SpawnMarker.x  -- 👈 ดึงจากจุด
-                    if Vdist(coords, gpos) <= gradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                    if Vdist(coords, gpos) <= gradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
                         
                         if not hasJob(reqJob, myJob) then goto END end
 
@@ -889,7 +921,7 @@ Citizen.CreateThread(function()
                 if hasJob(reqJob, myJob) then
                     if Vdist(coords, poundConfig.location) <= Config.SeeMarker * 1.5 then
                         sleep = 0
-                        if Vdist(coords, poundConfig.location) <= pradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                        if Vdist(coords, poundConfig.location) <= pradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
                             pressE = true
                             mrcoords = vector3(poundConfig.location.x, poundConfig.location.y, poundConfig.location.z - 0.3)
                             text = 'OPEN POUND VEHICLE MENU'
@@ -979,7 +1011,7 @@ end
 exports("OpenGarageNear", OpenGarageNear)
 
 function isStoryDimension(dim)
-    local WhitelistDimen = exports['Assist_Setdimen']:GetWhitelistDimen()
+    local WhitelistDimen = getWhitelistDimensions()
     for _, allowed in ipairs(WhitelistDimen) do
         if dim == allowed then
             return true
@@ -1004,9 +1036,9 @@ CreateThread(function()
                     local inside = dist <= cfg.distDelete and (CurrentPoint == nil)
                     local veh = GetVehiclePedIsIn(ped, false)
                     local isDriver = (GetPedInVehicleSeat(veh, -1) == ped)
-                    local mydimen = exports['Assist_Setdimen']:GetDimension()
+                    local mydimen = getCurrentDimension()
                        
-                    if inside and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage and isDriver and not isStoryDimension(mydimen) then
+                    if inside and isInDimension(getCurrentDimension()) and not openuigarage and isDriver and not isStoryDimension(mydimen) then
                         sleep = 0
                         -- DrawMarker(
                         --     Config.DepositMarker2.type,
@@ -1059,8 +1091,8 @@ CreateThread(function()
                 local dist = #(coords - cfg.location)
                 if dist <= Config.DepositMarker1.x and not openuigarage then
                     sleep = 200
-                    dprint("[DimCheck-foot]", isInDimension(exports['Assist_Setdimen']:GetDimension()))
-                    if (CurrentPoint == nil) and isInDimension(exports['Assist_Setdimen']:GetDimension()) then
+                    dprint("[DimCheck-foot]", isInDimension(getCurrentDimension()))
+                    if (CurrentPoint == nil) and isInDimension(getCurrentDimension()) then
                         sleep = 0
                         local success = exports["Assist_Text"]:showInteractionUI({
                             id = cfg.location,

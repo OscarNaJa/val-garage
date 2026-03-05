@@ -1,9 +1,29 @@
-ESX = nil
+local ESX = nil
 local ResourceName = GetCurrentResourceName()
+
+local function initESX()
+    if ESX then return ESX end
+
+    if GetResourceState('es_extended') == 'started' then
+        local ok, shared = pcall(function()
+            return exports['es_extended']:getSharedObject()
+        end)
+        if ok and shared then
+            ESX = shared
+            return ESX
+        end
+    end
+
+    TriggerEvent('esx:getSharedObject', function(obj)
+        ESX = obj
+    end)
+
+    return ESX
+end
+
 CreateThread(function()
-    while ESX == nil do
-        TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-        Wait(0)
+    while not initESX() do
+        Wait(200)
     end
 end)
 
@@ -107,22 +127,28 @@ AddEventHandler(ResourceName..'::modifyDamage', function(plate, damage)
     })
 end)
 
-ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
-    local xPlayer = getPlayer(src)
-    if not xPlayer then cb(false) return end
-    local cost = tonumber(Config.poundCost or 0) or 0
-    if cost <= 0 then cb(true) return end
-    local money = xPlayer.getMoney()
-    if money >= cost then
-        xPlayer.removeMoney(cost)
-        cb(true)
-        return
+CreateThread(function()
+    while not initESX() do
+        Wait(200)
     end
-    local bank = xPlayer.getAccount('bank').money or 0
-    if bank >= cost then
-        xPlayer.removeAccountMoney('bank', cost)
-        cb(true)
-    else
-        cb(false)
-    end
+
+    ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
+        local xPlayer = getPlayer(src)
+        if not xPlayer then cb(false) return end
+        local cost = tonumber(Config.poundCost or 0) or 0
+        if cost <= 0 then cb(true) return end
+        local money = xPlayer.getMoney()
+        if money >= cost then
+            xPlayer.removeMoney(cost)
+            cb(true)
+            return
+        end
+        local bank = xPlayer.getAccount('bank').money or 0
+        if bank >= cost then
+            xPlayer.removeAccountMoney('bank', cost)
+            cb(true)
+        else
+            cb(false)
+        end
+    end)
 end)
