@@ -686,7 +686,7 @@ function hasJob(jobReq, myJob)
     end
 end
 
--- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (Assist_Text)
+-- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (DDT_3d)
 -- local isGhostActive = false
 -- local ghostVeh = 0         -- รถคันที่กำลังถูกทำให้ใสอยู่
 
@@ -787,7 +787,7 @@ Citizen.CreateThread(function()
                             Config.garageDetail[lastDeleteMarker].deletelocation.z - 0.3
                         )
                         text = 'STORED VEHICLE'
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DDT_3d"]:showInteractionUI({
                             id = Config.garageDetail[lastDeleteMarker].deletelocation,
                             coords = Config.garageDetail[lastDeleteMarker].deletelocation,
                             keyNum = 38,
@@ -836,7 +836,7 @@ Citizen.CreateThread(function()
                         )
                         -- print(Config.SpawnMarker.x)
                         text = 'OPEN GARAGE'
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DDT_3d"]:showInteractionUI({
                             id = gpos,
                             coords = gpos,
                             keyNum = 38,
@@ -893,7 +893,7 @@ Citizen.CreateThread(function()
                             pressE = true
                             mrcoords = vector3(poundConfig.location.x, poundConfig.location.y, poundConfig.location.z - 0.3)
                             text = 'OPEN POUND VEHICLE MENU'
-                            local success = exports["Assist_Text"]:showInteractionUI({
+                            local success = exports["DDT_3d"]:showInteractionUI({
                                 id = poundConfig.location,
                                 coords = poundConfig.location,
                                 keyNum = 38,
@@ -1017,7 +1017,7 @@ CreateThread(function()
                         --     90,false,false,2,false,false,false,false
                         -- )
                         if not cfg.autodelete then
-                            local ok = exports["Assist_Text"]:showInteractionUI({
+                            local ok = exports["DDT_3d"]:showInteractionUI({
                                 id = cfg.deletelocation,
                                 coords = coords,
                                 keyNum = 38,
@@ -1062,7 +1062,7 @@ CreateThread(function()
                     dprint("[DimCheck-foot]", isInDimension(exports['Assist_Setdimen']:GetDimension()))
                     if (CurrentPoint == nil) and isInDimension(exports['Assist_Setdimen']:GetDimension()) then
                         sleep = 0
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DDT_3d"]:showInteractionUI({
                             id = cfg.location,
                             coords = cfg.location,
                             keyNum = 38,
