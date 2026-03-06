@@ -235,16 +235,20 @@ local function clearGhostAndAlpha(ent)
     end
 end
 
--- helper เอาไว้เรียก export ให้ถูกจำนวนพารามิเตอร์
+-- helper วาดวง marker แบบ native โดยไม่พึ่ง esx_core
 local function DrawGarageCircle(center, radius, colorMarker, colorLine)
     -- print("DrawGarageCircle", center, radius, colorMarker, colorLine)
-    if colorMarker ~= nil and colorLine ~= nil then
-        -- กรณีมีสีครบ ส่ง 4 ตัว
-        exports['esx_core']:drawArenaCircleOnce(center, radius, colorMarker, colorLine)
-    else
-        -- กรณีไม่กำหนดสี ปล่อยให้ esx_core ใช้สี default
-        exports['esx_core']:drawArenaCircleOnce(center, radius)
-    end
+    local markerColor = colorMarker or { r = 0, g = 255, b = 0, a = 60 }
+
+    DrawMarker(
+        1,
+        center.x, center.y, center.z,
+        0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0,
+        radius * 2.0, radius * 2.0, 0.15,
+        markerColor.r, markerColor.g, markerColor.b, markerColor.a,
+        false, false, 2, false, nil, nil, false
+    )
 end
 
 -- วาดเฉพาะตอนมีจุดให้วาด + ลดความถี่การวาดลง
