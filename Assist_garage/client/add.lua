@@ -320,7 +320,7 @@ Citizen.CreateThread(function()
 
         local hasAnyMarker =
             (lastGarageMarker ~= nil and not locationPropspawn[lastGarageMarker]) or
-            (lastDeleteMarker ~= nil and not deletelocationPropspawn[lastDeleteMarker]) or
+            (lastDeleteMarker ~= nil) or
             (lastPoundMarker  ~= nil and not poundPropspawn[lastPoundMarker])
             -- print(lastDeleteMarker)
         -- print(deletelocationPropspawn[lastDeleteMarker])
@@ -360,11 +360,11 @@ Citizen.CreateThread(function()
             end
 
             -- =======================================
-            -- DELETE (โชว์เฉพาะจุดที่ไม่มี prop)
+            -- DELETE (โชว์ทุกจุดเก็บรถ)
             -- =======================================
             if inVeh then
                 for id, location in pairs(deletelocationDetailIndex) do
-                    if location and not deletelocationPropspawn[id] then
+                    if location then
                         local inout, dis = distance(coords, location, 10.0)
                         if inout then
                             local cfg = Config.garageDetail[id]
