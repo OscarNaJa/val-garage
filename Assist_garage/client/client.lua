@@ -77,6 +77,12 @@ local function canOpenTrunk(stored)
     return true
 end
 
+local function getVehicleImageConfig(model)
+    local key = string.lower(tostring(model or ''))
+    local cfg = Config.VehicleImageMap and Config.VehicleImageMap[key] or nil
+    return cfg
+end
+
 Citizen.CreateThread(function()
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(l) ESX = l end)
@@ -527,7 +533,8 @@ openGarage = function(current_point,current_type,job)
         for _ , v in pairs(Mystored) do
             if current_type == v.type then
                 local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -739,7 +746,7 @@ ReloadVehicleData = function(current_point,current_type)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     img = GetCarTypeToNuiImage(vehiclemodel),
                     weight = 0,
@@ -753,7 +760,8 @@ ReloadVehicleData = function(current_point,current_type)
         for _ , v in pairs(Mystored) do 
             if v.deposit ~= nil then 
                 local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -769,7 +777,7 @@ ReloadVehicleData = function(current_point,current_type)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     weight = 0,
                     img = GetCarTypeToNuiImage(vehiclemodel),
@@ -1431,6 +1439,11 @@ end
 exports("CheckVehicle", CheckVehicle)
 
 GetCarTypeToNuiImage = function(veh)
+	local visualCfg = getVehicleImageConfig(veh)
+	if visualCfg and visualCfg.image then
+		return visualCfg.image
+	end
+
 	local vc = GetVehicleClassFromName(veh)
 	if vc == 8 then
 		return 'moto'

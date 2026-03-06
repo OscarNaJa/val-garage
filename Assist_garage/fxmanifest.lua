@@ -32,6 +32,7 @@ server_scripts {
 	'config.poundDetail.lua',
 	'config.garageDetail.lua',
 	'config.depositvehicle.lua',
+	'config.image.lua',
 	'config.webhook.lua',
 	'server/server.lua'
 }
@@ -42,6 +43,7 @@ client_scripts {
 	'config.poundDetail.lua',
 	'config.garageDetail.lua',
 	'config.depositvehicle.lua',
+	'config.image.lua',
 	'client/client.lua',
 	'client/add.lua',
 }

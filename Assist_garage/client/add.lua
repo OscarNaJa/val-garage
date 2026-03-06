@@ -316,7 +316,7 @@ Citizen.CreateThread(function()
         local sleep = 1500
         local ped    = PlayerPedId()
         local coords = GetEntityCoords(ped)
-        local inVeh  = (GetVehiclePedIsUsing(ped) == 0)
+        local inVeh  = IsPedInAnyVehicle(ped, false)
 
         local hasAnyMarker =
             (lastGarageMarker ~= nil and not locationPropspawn[lastGarageMarker]) or
@@ -331,7 +331,7 @@ Citizen.CreateThread(function()
             -- =======================================
             -- GARAGE (โชว์เฉพาะจุดที่ไม่มี prop)
             -- =======================================
-            if inVeh then
+            if not inVeh then
                 for id, location in pairs(locationIndex) do
                     if location and not locationPropspawn[id] then
                         local inout, dis = distance(coords, location, 10.0)
@@ -362,7 +362,7 @@ Citizen.CreateThread(function()
             -- =======================================
             -- DELETE (โชว์เฉพาะจุดที่ไม่มี prop)
             -- =======================================
-            if not inVeh then
+            if inVeh then
                 for id, location in pairs(deletelocationDetailIndex) do
                     if location and not deletelocationPropspawn[id] then
                         local inout, dis = distance(coords, location, 10.0)
@@ -396,7 +396,7 @@ Citizen.CreateThread(function()
             -- =======================================
             -- POUND (โชว์เฉพาะจุดที่ไม่มี prop)
             -- =======================================
-            if inVeh then
+            if not inVeh then
                 for id, location in pairs(poundDetailIndex) do
                     if location and not poundPropspawn[id] then
                         local inout, dis = distance(coords, location, 10.0)
