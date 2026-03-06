@@ -226,11 +226,11 @@ local function clearGhostAndAlpha(ent)
 end
 
 local function isInSpawnGhostRange(coords)
-    local defaultRadius = (Config.SpawnMarker and Config.SpawnMarker.x) or 5.0
+    local defaultRadius = Config.GhostRadius or (Config.SpawnMarker and Config.SpawnMarker.x) or 5.0
 
     for _, cfg in ipairs(Config.garageDetail or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.Radius or defaultRadius
+            local radius = cfg.GhostRadius or cfg.Radius or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end
@@ -239,7 +239,7 @@ local function isInSpawnGhostRange(coords)
 
     for _, cfg in ipairs(Config.poundDetail or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.Radius or defaultRadius
+            local radius = cfg.GhostRadius or cfg.Radius or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end
@@ -248,7 +248,7 @@ local function isInSpawnGhostRange(coords)
 
     for _, cfg in ipairs(Config.depositvehicle or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.distDelete or defaultRadius
+            local radius = cfg.GhostRadius or cfg.distDelete or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end
@@ -617,7 +617,9 @@ Citizen.CreateThread(function()
 
         -- ====== spawn zone ghost logic (กันรถเบิกรถซ้อนกัน) ======
         local mydimen = getCurrentDimension()
-        local shouldGhost = (veh ~= 0) and (not isStoryDimension(mydimen)) and isInSpawnGhostRange(playerCoords)
+        local inGhostRange = (not isStoryDimension(mydimen)) and isInSpawnGhostRange(playerCoords)
+        local hasTrackedVeh = (lastVeh ~= 0 and DoesEntityExist(lastVeh))
+        local shouldGhost = inGhostRange and ((veh ~= 0) or hasTrackedVeh)
 
         if shouldGhost and not inGhostZone then
             inGhostZone = true
@@ -632,10 +634,9 @@ Citizen.CreateThread(function()
                 lastVeh = veh
             end
 
-            if veh == 0 and lastVeh ~= 0 then
-                clearGhostAndAlpha(lastVeh)
-                lastVeh = 0
-                inGhostZone = false
+            if veh == 0 and lastVeh ~= 0 and DoesEntityExist(lastVeh) then
+                -- ลงจากรถในระยะ Ghost: ให้รถคันล่าสุดยังคงใส/ทะลุต่อจนกว่าจะออกนอกระยะ
+                setAlphaSafe(lastVeh, 150)
             end
         end
 
