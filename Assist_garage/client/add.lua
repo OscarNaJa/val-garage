@@ -202,6 +202,7 @@ local function setAlphaSafe(ent, alpha)
         if GetEntityAlpha(ent) ~= alpha then
             SetEntityAlpha(ent, alpha, false)
         end
+        SetEntityCollision(ent, false, false)
     end
     -- เปิด ghost ถ้ายังไม่ได้เปิดโดยเราเอง
     if not ghostOwned then
@@ -216,6 +217,7 @@ local function clearGhostAndAlpha(ent)
         if GetEntityAlpha(ent) ~= 255 then
             ResetEntityAlpha(ent)
         end
+        SetEntityCollision(ent, true, true)
     end
 
     -- ปลด ghost ที่เราตั้ง
