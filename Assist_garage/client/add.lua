@@ -1,6 +1,28 @@
 local ResourceName = GetCurrentResourceName()
 local ESX = exports['es_extended']:getSharedObject()
 local allowedDimensions = Config.DimensionsAllow -- มิติที่ต้องการเช็ค
+local function getCurrentDimension()
+    local ok, dim = pcall(function()
+        return exports['Assist_Setdimen']:GetDimension()
+    end)
+    if ok and dim ~= nil then return dim end
+
+    ok, dim = pcall(function()
+        return exports['Assist_Setdimen']:GetCurrentDimension()
+    end)
+    if ok and dim ~= nil then return dim end
+
+    return 0
+end
+
+local function getWhitelistDimensions()
+    local ok, list = pcall(function()
+        return exports['Assist_Setdimen']:GetWhitelistDimen()
+    end)
+    if ok and type(list) == 'table' then return list end
+    return {}
+end
+
 
 local locationIndex = {}
 local locationPropspawn = {}
@@ -174,12 +196,49 @@ markerRadius = 30.0
 local lastVeh = 0
 local inGhostZone = false
 local ghostOwned = false -- เราเป็นคนเปิด ghost อยู่ไหม
+local lastNoCollisionScanAt = 0
+
+local function applyNoCollisionWithNearbyVehicles(ent)
+    if ent == 0 or not DoesEntityExist(ent) then return end
+
+    local now = GetGameTimer()
+    local scanInterval = Config.GhostNoCollisionScanInterval or 250
+    if (now - lastNoCollisionScanAt) < scanInterval then
+        return
+    end
+    lastNoCollisionScanAt = now
+
+    local radius = Config.GhostNoCollisionRadius or Config.GhostRadius or 7.5
+    local radius2 = radius * radius
+    local maxProcess = Config.GhostNoCollisionMaxVehicles or 30
+    local myCoords = GetEntityCoords(ent)
+    local vehicles = GetGamePool('CVehicle')
+    local processed = 0
+
+    for i = 1, #vehicles do
+        local other = vehicles[i]
+        if other ~= ent and DoesEntityExist(other) then
+            local o = GetEntityCoords(other)
+            local dist2 = Vdist2(myCoords.x, myCoords.y, myCoords.z, o.x, o.y, o.z)
+            if dist2 <= radius2 then
+                SetEntityNoCollisionEntity(ent, other, true)
+                SetEntityNoCollisionEntity(other, ent, true)
+                processed = processed + 1
+                if processed >= maxProcess then
+                    break
+                end
+            end
+        end
+    end
+end
 
 local function setAlphaSafe(ent, alpha)
     if ent ~= 0 and DoesEntityExist(ent) then
         if GetEntityAlpha(ent) ~= alpha then
             SetEntityAlpha(ent, alpha, false)
         end
+        -- กันรถชนกันเฉพาะกับรถรอบข้าง โดยไม่ปิด world collision (กันรถตกแมพ)
+        applyNoCollisionWithNearbyVehicles(ent)
     end
     -- เปิด ghost ถ้ายังไม่ได้เปิดโดยเราเอง
     if not ghostOwned then
@@ -203,36 +262,37 @@ local function clearGhostAndAlpha(ent)
     end
 end
 
-local lastVeh = 0
-local inGhostZone = false
-local ghostOwned = false -- เราเป็นคนเปิด ghost อยู่ไหม
+local function isInSpawnGhostRange(coords)
+    local defaultRadius = Config.GhostRadius or (Config.SpawnMarker and Config.SpawnMarker.x) or 5.0
 
-local function setAlphaSafe(ent, alpha)
-    if ent ~= 0 and DoesEntityExist(ent) then
-        if GetEntityAlpha(ent) ~= alpha then
-            SetEntityAlpha(ent, alpha, false)
-        end
-    end
-    -- เปิด ghost ถ้ายังไม่ได้เปิดโดยเราเอง
-    if not ghostOwned then
-        SetLocalPlayerAsGhost(true)
-        ghostOwned = true
-    end
-end
-
-local function clearGhostAndAlpha(ent)
-    -- รีเซ็ตความโปร่งใสของรถ (ถ้ารถยังอยู่)
-    if ent ~= 0 and DoesEntityExist(ent) then
-        if GetEntityAlpha(ent) ~= 255 then
-            ResetEntityAlpha(ent)
+    for _, cfg in ipairs(Config.garageDetail or {}) do
+        if cfg.spawnlocation then
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.Radius or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
         end
     end
 
-    -- ปลด ghost ที่เราตั้ง
-    if ghostOwned then
-        SetLocalPlayerAsGhost(false)
-        ghostOwned = false
+    for _, cfg in ipairs(Config.poundDetail or {}) do
+        if cfg.spawnlocation then
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.Radius or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
+        end
     end
+
+    for _, cfg in ipairs(Config.depositvehicle or {}) do
+        if cfg.spawnlocation then
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.distDelete or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
+        end
+    end
+
+    return false
 end
 
 -- helper เอาไว้เรียก export ให้ถูกจำนวนพารามิเตอร์
@@ -256,11 +316,11 @@ Citizen.CreateThread(function()
         local sleep = 1500
         local ped    = PlayerPedId()
         local coords = GetEntityCoords(ped)
-        local inVeh  = (GetVehiclePedIsUsing(ped) == 0)
+        local inVeh  = IsPedInAnyVehicle(ped, false)
 
         local hasAnyMarker =
             (lastGarageMarker ~= nil and not locationPropspawn[lastGarageMarker]) or
-            (lastDeleteMarker ~= nil and not deletelocationPropspawn[lastDeleteMarker]) or
+            (lastDeleteMarker ~= nil) or
             (lastPoundMarker  ~= nil and not poundPropspawn[lastPoundMarker])
             -- print(lastDeleteMarker)
         -- print(deletelocationPropspawn[lastDeleteMarker])
@@ -271,7 +331,7 @@ Citizen.CreateThread(function()
             -- =======================================
             -- GARAGE (โชว์เฉพาะจุดที่ไม่มี prop)
             -- =======================================
-            if inVeh then
+            if not inVeh then
                 for id, location in pairs(locationIndex) do
                     if location and not locationPropspawn[id] then
                         local inout, dis = distance(coords, location, 10.0)
@@ -300,18 +360,17 @@ Citizen.CreateThread(function()
             end
 
             -- =======================================
-            -- DELETE (โชว์เฉพาะจุดที่ไม่มี prop)
+            -- DELETE (โชว์ทุกจุดเก็บรถ)
             -- =======================================
-            if not inVeh then
+            if inVeh then
                 for id, location in pairs(deletelocationDetailIndex) do
-                    if location and not deletelocationPropspawn[id] then
+                    if location then
                         local inout, dis = distance(coords, location, 10.0)
                         if inout then
                             local cfg = Config.garageDetail[id]
-                            local radius = (cfg and cfg.DelRadius) or 2.0
+                            local radius = (cfg and cfg.DelRadius) or Config.DeleteMarker.x or 2.0
                             -- print("radius:", radius)
-                            local vehicletype = cfg.vehicletype or 'car'
-                            local markerType = Config.MarkerType[vehicletype] or 36
+                            local markerType = Config.DeleteMarker.type or 6
                             local colorMarker = {r = Config.DeleteMarker.r, g = Config.DeleteMarker.g, b = Config.DeleteMarker.b, a = 100}
                             local colorLine   = {r = Config.DeleteMarker.r, g = Config.DeleteMarker.g, b = Config.DeleteMarker.b, a = 255}
 
@@ -322,10 +381,10 @@ Citizen.CreateThread(function()
                                     location.x, location.y, location.z,
                                     0.0, 0.0, 0.0,
                                     0.0, 0.0, 0.0,
-                                    1.0, 1.0, 1.0,
-                                    colorMarker.r, colorMarker.g, colorMarker.b,
-                                    colorMarker.a * 3,
-                                    true, true, 2, false, nil, nil, false
+                                    radius, radius, Config.DeleteMarker.z or 0.30,
+                                    255, 51, 51,
+                                    math.min((Config.DeleteMarker.a or 100) * 2, 255),
+                                    false, true, 2, false, nil, nil, false
                                 )
                             end
                         end
@@ -336,7 +395,7 @@ Citizen.CreateThread(function()
             -- =======================================
             -- POUND (โชว์เฉพาะจุดที่ไม่มี prop)
             -- =======================================
-            if inVeh then
+            if not inVeh then
                 for id, location in pairs(poundDetailIndex) do
                     if location and not poundPropspawn[id] then
                         local inout, dis = distance(coords, location, 10.0)
@@ -576,75 +635,59 @@ Citizen.CreateThread(function()
             end
         end
 
-        -- ====== deposit zone / ghost logic ======
+        -- ====== deposit marker tracking ======
         local currentDepositMarker, depositDistance = GetClosestMarker(playerCoords, DepositlocationDetailIndex)
-        local mydimen = exports['Assist_Setdimen']:GetDimension()
-        if not isStoryDimension(mydimen) then
-            if currentDepositMarker and depositDistance < 150.0 then
-                local cfg = Config.depositvehicle[currentDepositMarker]
-                local triggerRadius = (cfg and cfg.distDelete or 0.0) + 15.0
-                local shouldGhost = false
-                if veh ~= 0 and cfg and cfg.active and cfg.GhostZone and (depositDistance < triggerRadius) then
-                    shouldGhost = true
-                end
-
-                -- เข้าโซน ghost ครั้งแรก
-                if shouldGhost and not inGhostZone then
-                    inGhostZone = true
-                    setAlphaSafe(veh, 150)
-                    lastVeh = veh
-                end
-
-                -- อยู่ในโซนต่อเนื่อง
-                if inGhostZone and shouldGhost then
-                    -- สลับรถในโซน
-                    if veh ~= 0 and veh ~= lastVeh then
-                        clearGhostAndAlpha(lastVeh)
-                        setAlphaSafe(veh, 150)
-                        lastVeh = veh
-                    end
-
-                    -- ลงรถ (veh == 0)
-                    if veh == 0 and lastVeh ~= 0 then
-                        clearGhostAndAlpha(lastVeh)
-                        lastVeh = 0
-                    end
-                end
-
-                -- ออกจากเงื่อนไข ghost (ยังอยู่ในระยะ 150.0 แต่มันไม่ควร ghost แล้ว เช่น cfg.inactive)
-                if inGhostZone and not shouldGhost then
-                    inGhostZone = false
-                    clearGhostAndAlpha(lastVeh)
-                    lastVeh = 0
-                end
-
-                -- track deposit marker state
-                if not hasEnteredDepositMarker then
-                    hasEnteredDepositMarker = true
-                    lastDepositMarker = currentDepositMarker
-                elseif lastDepositMarker ~= currentDepositMarker then
-                    lastDepositMarker = currentDepositMarker
-                end
-
-            else
-                -- ไปไกลกว่า 150.0 / ไม่มี deposit เลย
-                if inGhostZone then
-                    inGhostZone = false
-                    clearGhostAndAlpha(lastVeh)
-                    lastVeh = 0
-                else
-                    -- failsafe เพิ่มเติม: ถ้าเราไม่อยู่โซนแล้ว แต่ยัง ghostOwned=true (เช่นรถโดนลบทิ้งกลางระหว่าง if)
-                    if ghostOwned then
-                        clearGhostAndAlpha(lastVeh)
-                        lastVeh = 0
-                    end
-                end
-
-                if hasEnteredDepositMarker then
-                    hasEnteredDepositMarker = false
-                    lastDepositMarker = nil
-                end
+        if currentDepositMarker and depositDistance < 150.0 then
+            if not hasEnteredDepositMarker then
+                hasEnteredDepositMarker = true
+                lastDepositMarker = currentDepositMarker
+            elseif lastDepositMarker ~= currentDepositMarker then
+                lastDepositMarker = currentDepositMarker
             end
+        else
+            if hasEnteredDepositMarker then
+                hasEnteredDepositMarker = false
+                lastDepositMarker = nil
+            end
+        end
+
+        -- ====== spawn zone ghost logic (กันรถเบิกรถซ้อนกัน) ======
+        local mydimen = getCurrentDimension()
+        local inGhostRange = (not isStoryDimension(mydimen)) and isInSpawnGhostRange(playerCoords)
+        local hasTrackedVeh = (lastVeh ~= 0 and DoesEntityExist(lastVeh))
+        local shouldGhost = inGhostRange and ((veh ~= 0) or hasTrackedVeh)
+
+        if shouldGhost and not inGhostZone then
+            inGhostZone = true
+            setAlphaSafe(veh, 150)
+            lastVeh = veh
+        end
+
+        if inGhostZone and shouldGhost then
+            if lastVeh ~= 0 and DoesEntityExist(lastVeh) then
+                -- ต้องเรียกทุก tick เพราะ no-collision แบบ this frame
+                applyNoCollisionWithNearbyVehicles(lastVeh)
+            end
+
+            if veh ~= 0 and veh ~= lastVeh then
+                clearGhostAndAlpha(lastVeh)
+                setAlphaSafe(veh, 150)
+                lastVeh = veh
+            end
+
+            if veh == 0 and lastVeh ~= 0 and DoesEntityExist(lastVeh) then
+                -- ลงจากรถในระยะ Ghost: ให้รถคันล่าสุดยังคงใส/ทะลุต่อจนกว่าจะออกนอกระยะ
+                setAlphaSafe(lastVeh, 150)
+            end
+        end
+
+        if inGhostZone and not shouldGhost then
+            inGhostZone = false
+            clearGhostAndAlpha(lastVeh)
+            lastVeh = 0
+        elseif (not inGhostZone) and ghostOwned then
+            clearGhostAndAlpha(lastVeh)
+            lastVeh = 0
         end
     end
 end)
@@ -685,8 +728,12 @@ function hasJob(jobReq, myJob)
         return false
     end
 end
+local function isInteractPressed()
+    return IsControlJustPressed(0, 38) or IsControlJustReleased(0, 38)
+end
 
--- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (Assist_Text)
+
+-- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (DTT_3d)
 -- local isGhostActive = false
 -- local ghostVeh = 0         -- รถคันที่กำลังถูกทำให้ใสอยู่
 
@@ -767,7 +814,7 @@ Citizen.CreateThread(function()
                     local myJob = (PlayerData and PlayerData.job and PlayerData.job.name) or nil
                     local reqJob = Config.garageDetail[lastDeleteMarker].job
                     local delradius = Config.garageDetail[lastDeleteMarker].DelRadius or Config.DeleteMarker.x
-                    if Vdist(coords, Config.garageDetail[lastDeleteMarker].deletelocation) <= delradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                    if Vdist(coords, Config.garageDetail[lastDeleteMarker].deletelocation) <= delradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
 
                         if not hasJob(reqJob, myJob) then
                             goto END
@@ -787,7 +834,7 @@ Citizen.CreateThread(function()
                             Config.garageDetail[lastDeleteMarker].deletelocation.z - 0.3
                         )
                         text = 'STORED VEHICLE'
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = Config.garageDetail[lastDeleteMarker].deletelocation,
                             coords = Config.garageDetail[lastDeleteMarker].deletelocation,
                             keyNum = 38,
@@ -797,7 +844,7 @@ Citizen.CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             -- if GetPedInVehicleSeat(GetVehiclePedIsIn(ped), -1) == ped then
                                 if not fistLoad then
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -824,7 +871,7 @@ Citizen.CreateThread(function()
                     local gcfg   = Config.garageDetail[lastGarageMarker]
                     local gpos   = gcfg.location
                     local gradius= gcfg.Radius or Config.SpawnMarker.x  -- 👈 ดึงจากจุด
-                    if Vdist(coords, gpos) <= gradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                    if Vdist(coords, gpos) <= gradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
                         
                         if not hasJob(reqJob, myJob) then goto END end
 
@@ -836,7 +883,7 @@ Citizen.CreateThread(function()
                         )
                         -- print(Config.SpawnMarker.x)
                         text = 'OPEN GARAGE'
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = gpos,
                             coords = gpos,
                             keyNum = 38,
@@ -846,7 +893,7 @@ Citizen.CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             if not fistLoad then
                                 SetNuiFocus(true, true)
                                 TriggerServerEvent(ResourceName..':reloadData')
@@ -889,11 +936,11 @@ Citizen.CreateThread(function()
                 if hasJob(reqJob, myJob) then
                     if Vdist(coords, poundConfig.location) <= Config.SeeMarker * 1.5 then
                         sleep = 0
-                        if Vdist(coords, poundConfig.location) <= pradius and CurrentPoint == nil and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage then
+                        if Vdist(coords, poundConfig.location) <= pradius and CurrentPoint == nil and isInDimension(getCurrentDimension()) and not openuigarage then
                             pressE = true
                             mrcoords = vector3(poundConfig.location.x, poundConfig.location.y, poundConfig.location.z - 0.3)
                             text = 'OPEN POUND VEHICLE MENU'
-                            local success = exports["Assist_Text"]:showInteractionUI({
+                            local success = exports["DTT_3d"]:showInteractionUI({
                                 id = poundConfig.location,
                                 coords = poundConfig.location,
                                 keyNum = 38,
@@ -903,7 +950,7 @@ Citizen.CreateThread(function()
                                 duration = 600,
                                 type = 2
                             })
-                            if success then
+                            if success and isInteractPressed() then
                                 if not fistLoad then
                                     SetNuiFocus(true, true)
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -979,7 +1026,7 @@ end
 exports("OpenGarageNear", OpenGarageNear)
 
 function isStoryDimension(dim)
-    local WhitelistDimen = exports['Assist_Setdimen']:GetWhitelistDimen()
+    local WhitelistDimen = getWhitelistDimensions()
     for _, allowed in ipairs(WhitelistDimen) do
         if dim == allowed then
             return true
@@ -1004,9 +1051,9 @@ CreateThread(function()
                     local inside = dist <= cfg.distDelete and (CurrentPoint == nil)
                     local veh = GetVehiclePedIsIn(ped, false)
                     local isDriver = (GetPedInVehicleSeat(veh, -1) == ped)
-                    local mydimen = exports['Assist_Setdimen']:GetDimension()
+                    local mydimen = getCurrentDimension()
                        
-                    if inside and isInDimension(exports['Assist_Setdimen']:GetDimension()) and not openuigarage and isDriver and not isStoryDimension(mydimen) then
+                    if inside and isInDimension(getCurrentDimension()) and not openuigarage and isDriver and not isStoryDimension(mydimen) then
                         sleep = 0
                         -- DrawMarker(
                         --     Config.DepositMarker2.type,
@@ -1017,7 +1064,7 @@ CreateThread(function()
                         --     90,false,false,2,false,false,false,false
                         -- )
                         if not cfg.autodelete then
-                            local ok = exports["Assist_Text"]:showInteractionUI({
+                            local ok = exports["DTT_3d"]:showInteractionUI({
                                 id = cfg.deletelocation,
                                 coords = coords,
                                 keyNum = 38,
@@ -1027,7 +1074,7 @@ CreateThread(function()
                                 duration = 600,
                                 type = 2
                             })
-                            if ok then
+                            if ok and isInteractPressed() then
                                 dprint("[Deposit] Success: hold E to deposit")
                                 if not fistLoad then 
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -1059,10 +1106,10 @@ CreateThread(function()
                 local dist = #(coords - cfg.location)
                 if dist <= Config.DepositMarker1.x and not openuigarage then
                     sleep = 200
-                    dprint("[DimCheck-foot]", isInDimension(exports['Assist_Setdimen']:GetDimension()))
-                    if (CurrentPoint == nil) and isInDimension(exports['Assist_Setdimen']:GetDimension()) then
+                    dprint("[DimCheck-foot]", isInDimension(getCurrentDimension()))
+                    if (CurrentPoint == nil) and isInDimension(getCurrentDimension()) then
                         sleep = 0
-                        local success = exports["Assist_Text"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = cfg.location,
                             coords = cfg.location,
                             keyNum = 38,
@@ -1072,7 +1119,7 @@ CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             if not fistLoad then
                                 SetNuiFocus(true,true)
                                 TriggerServerEvent(ResourceName..':reloadData')

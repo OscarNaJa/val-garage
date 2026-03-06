@@ -1,6 +1,6 @@
 Config = Config or {}
 Config.SpawnMarker 	= { type = 36, r = 94, g = 180, b = 191, a=100, x = 1.85, y = 1.5, z = 1.2 }									-- Marker ของจุดเบิกรถ
-Config.DeleteMarker = { type = 1, r = 255, g = 51, b = 51, a=100, x = 4.0, y = 4.0, z = 0.30 }									    -- Marker ของจุดเก็บรถ
+Config.DeleteMarker = { type = 6, r = 255, g = 51, b = 51, a=100, x = 4.0, y = 4.0, z = 0.30 }									    -- Marker ของจุดเก็บรถ (HorizontalSplitArrowCircle)
 -- Config.DeleteMarker2 = { type = 36, r = 255, g = 51, b = 51, a=100, x = 1.7, y = 1.7, z = 1.2 }									    -- Marker ของจุดเก็บรถ
 
 

@@ -1,9 +1,11 @@
-ESX = nil
+local ESX = exports['es_extended'] and exports['es_extended']:getSharedObject() or nil
 local ResourceName = GetCurrentResourceName()
+
 CreateThread(function()
+    if ESX then return end
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-        Wait(0)
+        Wait(200)
     end
 end)
 
@@ -12,33 +14,85 @@ local function getPlayer(src)
     return ESX.GetPlayerFromId(src)
 end
 
-local function fetchVehicles(identifier)
-    local result = MySQL.Sync.fetchAll('SELECT owner, plate, vehicle, type, stored, police, job, vehiclename, health_vehicles, deposit FROM owned_vehicles WHERE owner = @owner', { ['@owner'] = identifier })
-    local list = {}
-    for i = 1, #result do
-        local r = result[i]
-        list[#list+1] = {
-            plate = r.plate,
-            stored = r.stored == 1 or r.stored == true,
-            police = r.police or 0,
-            job = r.job or '',
-            type = r.type or 'car',
-            vehiclename = r.vehiclename,
-            vehicle = r.vehicle,
-            health_vehicles = r.health_vehicles,
-            deposit = r.deposit
-        }
-    end
-    return list
+local function fetchVehicles(identifier, cb)
+    MySQL.Async.fetchAll('SELECT owner, plate, vehicle, type, stored, police, job, vehiclename, health_vehicles, deposit FROM owned_vehicles WHERE owner = @owner', {
+        ['@owner'] = identifier
+    }, function(result)
+        local list = {}
+        for i = 1, #(result or {}) do
+            local r = result[i]
+            list[#list+1] = {
+                plate = r.plate,
+                stored = r.stored == 1 or r.stored == true,
+                police = r.police or 0,
+                job = r.job or '',
+                type = r.type or 'car',
+                vehiclename = r.vehiclename,
+                vehicle = r.vehicle,
+                health_vehicles = r.health_vehicles,
+                deposit = r.deposit
+            }
+        end
+        cb(list)
+    end)
 end
+
+local function sendWebhook(url, title, description, color)
+    if not url or url == '' then return end
+    local body = {
+        username = 'Assist_garage',
+        embeds = {
+            {
+                title = title,
+                description = description,
+                color = color or 16711680
+            }
+        }
+    }
+
+    PerformHttpRequest(url, function() end, 'POST', json.encode(body), {
+        ['Content-Type'] = 'application/json'
+    })
+end
+
+RegisterServerEvent(ResourceName..':logWebhook')
+AddEventHandler(ResourceName..':logWebhook', function(payload)
+    if type(payload) ~= 'table' then return end
+
+    local src = source
+    local xPlayer = getPlayer(src)
+    local ownerName = (xPlayer and xPlayer.getName and xPlayer.getName()) or GetPlayerName(src) or ('ID '..tostring(src))
+    local action = tostring(payload.action or payload.webhook or '')
+    local plate = tostring(payload.plate or '-')
+    local durability = tonumber(payload.durability or 0) or 0
+    local fuel = tonumber(payload.fuel or 0) or 0
+
+    local titleMap = {
+        storevehicle = 'เก็บรถ',
+        garage_spawn = 'เบิกรถ',
+        garage_pound = 'พาวน์รถ'
+    }
+
+    local title = titleMap[action] or 'Garage Log'
+    local desc = ('ชื่อเจ้าของรถ: %s\nทะเบียน: %s\nความคงทนรถ: %.1f\nน้ำมัน: %.1f')
+        :format(ownerName, plate, durability, fuel)
+
+    local webhookUrl = nil
+    if Config.Webhooks then
+        webhookUrl = Config.Webhooks[action]
+    end
+
+    sendWebhook(webhookUrl, title, desc, 16711680)
+end)
 
 RegisterServerEvent(ResourceName..':reloadData')
 AddEventHandler(ResourceName..':reloadData', function()
     local src = source
     local xPlayer = getPlayer(src)
     if not xPlayer then return end
-    local vehicles = fetchVehicles(xPlayer.getIdentifier() or xPlayer.identifier)
-    TriggerClientEvent(ResourceName..':reloadData:client', src, vehicles)
+    fetchVehicles(xPlayer.getIdentifier() or xPlayer.identifier, function(vehicles)
+        TriggerClientEvent(ResourceName..':reloadData:client', src, vehicles)
+    end)
 end)
 
 RegisterServerEvent(ResourceName..':setStateVehicle')
@@ -107,7 +161,10 @@ AddEventHandler(ResourceName..'::modifyDamage', function(plate, damage)
     })
 end)
 
-ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
+CreateThread(function()
+    while not ESX do Wait(200) end
+
+    ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
     local xPlayer = getPlayer(src)
     if not xPlayer then cb(false) return end
     local cost = tonumber(Config.poundCost or 0) or 0
@@ -125,4 +182,6 @@ ESX.RegisterServerCallback(ResourceName..':payMoney', function(src, cb)
     else
         cb(false)
     end
+end)
+
 end)

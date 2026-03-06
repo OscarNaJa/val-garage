@@ -35,3 +35,6 @@ Config.fuelPound = 100
 
 Config.DimensionsAllow = {0,100} -- มิติที่ต้องการเช็ค
 
+-- ระยะ Ghost รอบจุดเบิกรถ (ใช้เป็นค่า default ถ้าจุดนั้นไม่ได้กำหนด GhostRadius)
+Config.GhostRadius = 7.5
+

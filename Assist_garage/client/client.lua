@@ -36,6 +36,72 @@ createdProps = {}
 
 local ResourceName = GetCurrentResourceName()
 
+local function sendDiscordLog(payload)
+    if type(payload) ~= 'table' then return end
+    TriggerServerEvent(ResourceName..':logWebhook', payload)
+end
+
+local function notifyError()
+    exports['ssr_notify']:sendAlert({
+        title = 'การาจ',
+        msg = 'รถคันนี้ไม่สามารถเปิดท้ายรถได้',
+        type = 'error'
+    })
+end
+
+local function notifyNotOwner()
+    exports['ssr_notify']:sendAlert({
+        title = 'การาจ',
+        msg = 'คุณไม่ใช่เจ้าของรถ',
+        type = 'error'
+    })
+end
+
+local function canOpenTrunk(stored)
+    if not stored then return false end
+    if stored.type and stored.type ~= 'car' then return false end
+
+    local ok, props = pcall(function()
+        return json.decode(stored.vehicle)
+    end)
+    if not ok or type(props) ~= 'table' then return false end
+
+    local model = props.model
+    if not model then return false end
+
+    local class = GetVehicleClassFromName(model)
+    if class == 8 or class == 13 or class == 14 or class == 15 or class == 16 or class == 21 then
+        return false
+    end
+
+    return true
+end
+
+local function getVehicleImageConfig(model)
+    if not Config.VehicleImageMap then return nil end
+
+    local key = string.lower(tostring(model or ''))
+    if Config.VehicleImageMap[key] then
+        return Config.VehicleImageMap[key]
+    end
+
+    local modelHash = tonumber(model) or GetHashKey(tostring(model or ''))
+    if not modelHash or modelHash == 0 then return nil end
+
+    local displayKey = string.lower(GetDisplayNameFromVehicleModel(modelHash) or '')
+    if displayKey ~= '' and Config.VehicleImageMap[displayKey] then
+        return Config.VehicleImageMap[displayKey]
+    end
+
+    for mapKey, cfg in pairs(Config.VehicleImageMap) do
+        if GetHashKey(mapKey) == modelHash then
+            return cfg
+        end
+    end
+
+    return nil
+end
+
 Citizen.CreateThread(function()
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(l) ESX = l end)
@@ -398,12 +464,12 @@ StoreVehicle_deposit = function (id_deposit)
         local tableVehicle = checkCanDeposit(vehicleProps.plate, vehicleProps, id_deposit)
         if tableVehicle then 
             SaveDamage(vehicle, vehicleProps)
-            exports.nc_discordlogs:Discord({
-                webhook = 'StoreVehicle_deposit',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                description = '```ผู้เล่นได้ทำการฝากรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าจุดฝาก '..Config.depositvehicle[id_deposit].Label..'```',  -- คำอธิบายรายละเอียด (optional)
-                color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
+            sendDiscordLog({
+                webhook = 'storevehicle',
+                action = 'storevehicle',
+                plate = vehicleProps.plate,
+                durability = math.floor(GetVehicleEngineHealth(vehicle) or 0),
+                fuel = math.floor((vehicleProps.fuelLevel or GetVehicleFuelLevel(vehicle) or 0) + 0.5)
             })
             dprint(('Deposit: %s deposited plate %s at deposit ID %s'):format(PlayerData.identifier or "unknown", vehicleProps.plate, id_deposit))
             if Config.depositvehicle[id_deposit].autodelete then
@@ -457,7 +523,7 @@ getTableSpawn = function(plate,current_type)
         if v.plate == plate and v.stored == stored then 
             if stored then 
                 v.stored = not stored
-                print('set stored false for plate', plate)
+                dprint('set stored false for plate', plate)
             end
             return v 
         end 
@@ -486,7 +552,8 @@ openGarage = function(current_point,current_type,job)
         for _ , v in pairs(Mystored) do
             if current_type == v.type then
                 local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -506,7 +573,7 @@ openGarage = function(current_point,current_type,job)
                                     vehiclename = vehiclename,
                                     engine = healthEngine/10,
                                     fuel = fuel,
-                                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                     weight = 0,
                                     class = GetCarTypeToNui(vehiclemodel),
                                     img = GetCarTypeToNuiImage(vehiclemodel),
@@ -525,7 +592,7 @@ openGarage = function(current_point,current_type,job)
                                 vehiclename = vehiclename,
                                 engine = healthEngine/10,
                                 fuel = fuel,
-                                modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                 weight = 0,
                                 class = GetCarTypeToNui(vehiclemodel),
                                 img = GetCarTypeToNuiImage(vehiclemodel),
@@ -545,7 +612,7 @@ openGarage = function(current_point,current_type,job)
                                 vehiclename = vehiclename,
                                 engine = healthEngine/10,
                                 fuel = fuel,
-                                modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                 weight = 0,
                                 class = GetCarTypeToNui(vehiclemodel),
                                 img = GetCarTypeToNuiImage(vehiclemodel),
@@ -571,7 +638,7 @@ openGarage = function(current_point,current_type,job)
                             vehiclename = vehiclename,
                             engine = healthEngine / 10,
                             fuel = fuel,
-                            modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                            modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                             weight = 0,
                             class = GetCarTypeToNui(vehiclemodel),
                             img = GetCarTypeToNuiImage(vehiclemodel),
@@ -593,10 +660,11 @@ openGarage = function(current_point,current_type,job)
             end
         end 
     else 
-        for _ , v in pairs(Mystored) do 
-            if v.deposit ~= nil and v.deposit == current_type then 
-                local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+        for _ , v in pairs(Mystored) do
+            if v.deposit ~= nil and v.deposit == current_type then
+                local vehiclemodel = json.decode(v.vehicle).model
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -612,7 +680,7 @@ openGarage = function(current_point,current_type,job)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     weight = 0,
                     img = GetCarTypeToNuiImage(vehiclemodel),
@@ -698,7 +766,7 @@ ReloadVehicleData = function(current_point,current_type)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     img = GetCarTypeToNuiImage(vehiclemodel),
                     weight = 0,
@@ -712,7 +780,8 @@ ReloadVehicleData = function(current_point,current_type)
         for _ , v in pairs(Mystored) do 
             if v.deposit ~= nil then 
                 local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -728,7 +797,7 @@ ReloadVehicleData = function(current_point,current_type)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     weight = 0,
                     img = GetCarTypeToNuiImage(vehiclemodel),
@@ -771,12 +840,12 @@ RegisterNetEvent(ResourceName..':addVehicle')
 AddEventHandler(ResourceName..':addVehicle', function(vehData)
     -- ป้องกัน vehData เป็น nil/boolean โดยผิดพลาด
     if type(vehData) ~= "table" then
-        print("[garage] addVehicle got invalid data (not table)")
+        dprint("[garage] addVehicle got invalid data (not table)")
         return
     end
 
     if not vehData.plate then
-        print("[garage] addVehicle missing plate")
+        dprint("[garage] addVehicle missing plate")
         return
     end
 
@@ -789,7 +858,7 @@ AddEventHandler(ResourceName..':addVehicle', function(vehData)
     -- กันซ้ำด้วย plate
     for _, v in pairs(Mystored) do
         if type(v) == "table" and v.plate == vehData.plate then
-            print(("[garage] vehicle %s already exists in Mystored, skip"):format(vehData.plate))
+            dprint(("[garage] vehicle %s already exists in Mystored, skip"):format(vehData.plate))
             return
         end
     end
@@ -842,12 +911,12 @@ function StoreOwnedVehicleMenu()
 	local vehicle =	GetVehiclePedIsIn(playerPed, false)
 	local vehicleProps  = ESX.Game.GetVehicleProperties(vehicle)
     if checkOwner(vehicleProps.plate,vehicleProps.model) then
-        exports.nc_discordlogs:Discord({
-            webhook = 'storevehicle',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-            title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-            description = '```ผู้เล่นได้ทำการเก็บรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าการาจ```',  -- คำอธิบายรายละเอียด (optional)
-            color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-            screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
+        sendDiscordLog({
+            webhook = 'storevehicle',
+            action = 'storevehicle',
+            plate = vehicleProps.plate,
+            durability = math.floor(GetVehicleEngineHealth(vehicle) or 0),
+            fuel = math.floor((vehicleProps.fuelLevel or GetVehicleFuelLevel(vehicle) or 0) + 0.5)
         })
 
 -- * optional หมายถึงจะใส่หรือไม่ใส่ก็ได้
@@ -856,6 +925,8 @@ function StoreOwnedVehicleMenu()
         TriggerServerEvent(ResourceName..':setStateVehicle', vehicleProps.plate, true, vehicleProps)
         ESX.Game.DeleteVehicle(vehicle)
         dprint(("[garage] storeOwned -> %s"):format(vehicleProps.plate))
+    else
+        notifyNotOwner()
     end
     CurrentPoint = nil
 end
@@ -956,11 +1027,11 @@ function SpawnVehicle(vehicle, plate, damage)
 		Wait(10)
 		local veh = GetVehiclePedIsUsing(PlayerPedId())
 		SetEntityAlpha(veh, 121, false)
-        exports['Assist_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
+        exports['ssr_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
 
 		Wait(6000)
 		ResetEntityAlpha(veh)
-        exports['Assist_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
+        exports['ssr_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
         dprint(("[garage] SpawnVehicle -> %s fuel=%s"):format(tostring(Getplate), tostring(vehicle.fuelLevel)))
 
 		SetLocalPlayerAsGhost(false)
@@ -970,8 +1041,14 @@ function SpawnVehicle(vehicle, plate, damage)
 end
 
 RegisterNUICallback('trunkopen', function(data,cb)
-    for _ , v in pairs(Mystored) do 
+    for _ , v in pairs(Mystored) do
         if v.plate == data.plate then
+            if not canOpenTrunk(v) then
+                notifyError()
+                cb('fail')
+                return
+            end
+
             if exports["mythic_progbar"]:isDoingAction() then
                 TriggerEvent('pNotify:SendNotification', { type = 'error', text = 'กรุณาลองใหม่ภายหลัง' })
                 return
@@ -1111,13 +1188,12 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                             -- * optional หมายถึงจะใส่หรือไม่ใส่ก็ได้
                             SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage)
                             Wait(1000)
-                            exports.nc_discordlogs:Discord({
-                                webhook = 'garage_pound',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                                title = 'พาวยานพาหนะ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                                description = '```\nทำการพาวรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                                color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                                screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                                -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                            sendDiscordLog({
+                                webhook = 'garage_pound',
+                                action = 'garage_pound',
+                                plate = tableData.plate,
+                                durability = math.floor(damage.engine or 0),
+                                fuel = math.floor((damage.fuel or 0) + 0.5)
                             })
                             dprint(("[garage] spawnvehicle (pound) -> %s"):format(tableData.plate))
                         end
@@ -1159,20 +1235,19 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     end
                     SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage)
                     Wait(1000)
-                    -- exports.nc_discordlogs:Discord({
+                    -- sendDiscordLog({
                     --     webhook = 'deposit_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                     --     title = 'จุดฝากรถ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                     --     description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
                     --     color = '#6fa8dc',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
                     --     screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
                     -- })
-                    exports.nc_discordlogs:Discord({
-                        webhook = 'deposit_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                        title = 'จุดฝากรถ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                        description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                        color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                        screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                        -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                    sendDiscordLog({
+                        webhook = 'garage_spawn',
+                        action = 'garage_spawn',
+                        plate = tableData.plate,
+                        durability = math.floor(damage.engine or 0),
+                        fuel = math.floor((damage.fuel or 0) + 0.5)
                     })
                     dprint(("[garage] spawnvehicle (deposit-out) -> %s"):format(tableData.plate))
                 
@@ -1203,13 +1278,12 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage) 
                     dprint(("[garage] spawnvehicle (garage-out) -> %s"):format(tableData.plate))
                     Wait(1000)
-                    exports.nc_discordlogs:Discord({
-                        webhook = 'garage_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                        title = 'การาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                        description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                        color = '5dff00',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                        screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                        -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                    sendDiscordLog({
+                        webhook = 'garage_spawn',
+                        action = 'garage_spawn',
+                        plate = tableData.plate,
+                        durability = math.floor(damage.engine or 0),
+                        fuel = math.floor((damage.fuel or 0) + 0.5)
                     })
                 end
             end,'none')
@@ -1275,7 +1349,7 @@ RegisterNUICallback('exit', function(data,cb)
 end)
 
 function SetDamage(callback_vehicle, damage)
-    print(ESX.DumpTable(damage))
+    dprint(ESX.DumpTable(damage))
 	SetVehicleEngineHealth(callback_vehicle, damage.engine + 0.0 or 1000.0)
     if damage.health_body then
 	    SetVehicleBodyHealth(callback_vehicle, damage.health_body + 0.0 or 1000.0)
@@ -1385,6 +1459,11 @@ end
 exports("CheckVehicle", CheckVehicle)
 
 GetCarTypeToNuiImage = function(veh)
+	local visualCfg = getVehicleImageConfig(veh)
+	if visualCfg and visualCfg.image then
+		return visualCfg.image
+	end
+
 	local vc = GetVehicleClassFromName(veh)
 	if vc == 8 then
 		return 'moto'
