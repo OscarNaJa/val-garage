@@ -37,12 +37,7 @@ createdProps = {}
 local ResourceName = GetCurrentResourceName()
 
 local function sendDiscordLog(payload)
-    local ok = pcall(function()
-        return exports.nc_discordlogs:Discord(payload)
-    end)
-    if not ok then
-        dprint("[garage] nc_discordlogs:Discord export unavailable, skip log")
-    end
+    return
 end
 
 Citizen.CreateThread(function()
