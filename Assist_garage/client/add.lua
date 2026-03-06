@@ -197,12 +197,32 @@ local lastVeh = 0
 local inGhostZone = false
 local ghostOwned = false -- เราเป็นคนเปิด ghost อยู่ไหม
 
+local function applyNoCollisionWithNearbyVehicles(ent)
+    if ent == 0 or not DoesEntityExist(ent) then return end
+
+    local radius = Config.GhostNoCollisionRadius or Config.GhostRadius or 7.5
+    local myCoords = GetEntityCoords(ent)
+    local vehicles = GetGamePool('CVehicle')
+
+    for i = 1, #vehicles do
+        local other = vehicles[i]
+        if other ~= ent and DoesEntityExist(other) then
+            local dist = #(myCoords - GetEntityCoords(other))
+            if dist <= radius then
+                SetEntityNoCollisionEntity(ent, other, true)
+                SetEntityNoCollisionEntity(other, ent, true)
+            end
+        end
+    end
+end
+
 local function setAlphaSafe(ent, alpha)
     if ent ~= 0 and DoesEntityExist(ent) then
         if GetEntityAlpha(ent) ~= alpha then
             SetEntityAlpha(ent, alpha, false)
         end
-        SetEntityCollision(ent, false, false)
+        -- กันรถชนกันเฉพาะกับรถรอบข้าง โดยไม่ปิด world collision (กันรถตกแมพ)
+        applyNoCollisionWithNearbyVehicles(ent)
     end
     -- เปิด ghost ถ้ายังไม่ได้เปิดโดยเราเอง
     if not ghostOwned then
@@ -217,7 +237,6 @@ local function clearGhostAndAlpha(ent)
         if GetEntityAlpha(ent) ~= 255 then
             ResetEntityAlpha(ent)
         end
-        SetEntityCollision(ent, true, true)
     end
 
     -- ปลด ghost ที่เราตั้ง
@@ -630,6 +649,11 @@ Citizen.CreateThread(function()
         end
 
         if inGhostZone and shouldGhost then
+            if lastVeh ~= 0 and DoesEntityExist(lastVeh) then
+                -- ต้องเรียกทุก tick เพราะ no-collision แบบ this frame
+                applyNoCollisionWithNearbyVehicles(lastVeh)
+            end
+
             if veh ~= 0 and veh ~= lastVeh then
                 clearGhostAndAlpha(lastVeh)
                 setAlphaSafe(veh, 150)
