@@ -34,6 +34,54 @@ local function fetchVehicles(identifier)
     return list
 end
 
+local function sendWebhook(url, title, description, color)
+    if not url or url == '' then return end
+    local body = {
+        username = 'Assist_garage',
+        embeds = {
+            {
+                title = title,
+                description = description,
+                color = color or 16711680
+            }
+        }
+    }
+
+    PerformHttpRequest(url, function() end, 'POST', json.encode(body), {
+        ['Content-Type'] = 'application/json'
+    })
+end
+
+RegisterServerEvent(ResourceName..':logWebhook')
+AddEventHandler(ResourceName..':logWebhook', function(payload)
+    if type(payload) ~= 'table' then return end
+
+    local src = source
+    local xPlayer = getPlayer(src)
+    local ownerName = (xPlayer and xPlayer.getName and xPlayer.getName()) or GetPlayerName(src) or ('ID '..tostring(src))
+    local action = tostring(payload.action or payload.webhook or '')
+    local plate = tostring(payload.plate or '-')
+    local durability = tonumber(payload.durability or 0) or 0
+    local fuel = tonumber(payload.fuel or 0) or 0
+
+    local titleMap = {
+        storevehicle = 'เก็บรถ',
+        garage_spawn = 'เบิกรถ',
+        garage_pound = 'พาวน์รถ'
+    }
+
+    local title = titleMap[action] or 'Garage Log'
+    local desc = ('ชื่อเจ้าของรถ: %s\nทะเบียน: %s\nความคงทนรถ: %.1f\nน้ำมัน: %.1f')
+        :format(ownerName, plate, durability, fuel)
+
+    local webhookUrl = nil
+    if Config.Webhooks then
+        webhookUrl = Config.Webhooks[action]
+    end
+
+    sendWebhook(webhookUrl, title, desc, 16711680)
+end)
+
 RegisterServerEvent(ResourceName..':reloadData')
 AddEventHandler(ResourceName..':reloadData', function()
     local src = source

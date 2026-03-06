@@ -37,7 +37,8 @@ createdProps = {}
 local ResourceName = GetCurrentResourceName()
 
 local function sendDiscordLog(payload)
-    return
+    if type(payload) ~= 'table' then return end
+    TriggerServerEvent(ResourceName..':logWebhook', payload)
 end
 
 local function notifyError()
@@ -431,11 +432,11 @@ StoreVehicle_deposit = function (id_deposit)
         if tableVehicle then 
             SaveDamage(vehicle, vehicleProps)
             sendDiscordLog({
-                webhook = 'StoreVehicle_deposit',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                description = '```ผู้เล่นได้ทำการฝากรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าจุดฝาก '..Config.depositvehicle[id_deposit].Label..'```',  -- คำอธิบายรายละเอียด (optional)
-                color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
+                webhook = 'storevehicle',
+                action = 'storevehicle',
+                plate = vehicleProps.plate,
+                durability = math.floor(GetVehicleEngineHealth(vehicle) or 0),
+                fuel = math.floor((vehicleProps.fuelLevel or GetVehicleFuelLevel(vehicle) or 0) + 0.5)
             })
             dprint(('Deposit: %s deposited plate %s at deposit ID %s'):format(PlayerData.identifier or "unknown", vehicleProps.plate, id_deposit))
             if Config.depositvehicle[id_deposit].autodelete then
@@ -489,7 +490,7 @@ getTableSpawn = function(plate,current_type)
         if v.plate == plate and v.stored == stored then 
             if stored then 
                 v.stored = not stored
-                print('set stored false for plate', plate)
+                dprint('set stored false for plate', plate)
             end
             return v 
         end 
@@ -803,12 +804,12 @@ RegisterNetEvent(ResourceName..':addVehicle')
 AddEventHandler(ResourceName..':addVehicle', function(vehData)
     -- ป้องกัน vehData เป็น nil/boolean โดยผิดพลาด
     if type(vehData) ~= "table" then
-        print("[garage] addVehicle got invalid data (not table)")
+        dprint("[garage] addVehicle got invalid data (not table)")
         return
     end
 
     if not vehData.plate then
-        print("[garage] addVehicle missing plate")
+        dprint("[garage] addVehicle missing plate")
         return
     end
 
@@ -821,7 +822,7 @@ AddEventHandler(ResourceName..':addVehicle', function(vehData)
     -- กันซ้ำด้วย plate
     for _, v in pairs(Mystored) do
         if type(v) == "table" and v.plate == vehData.plate then
-            print(("[garage] vehicle %s already exists in Mystored, skip"):format(vehData.plate))
+            dprint(("[garage] vehicle %s already exists in Mystored, skip"):format(vehData.plate))
             return
         end
     end
@@ -875,11 +876,11 @@ function StoreOwnedVehicleMenu()
 	local vehicleProps  = ESX.Game.GetVehicleProperties(vehicle)
     if checkOwner(vehicleProps.plate,vehicleProps.model) then
         sendDiscordLog({
-            webhook = 'storevehicle',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-            title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-            description = '```ผู้เล่นได้ทำการเก็บรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าการาจ```',  -- คำอธิบายรายละเอียด (optional)
-            color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-            screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
+            webhook = 'storevehicle',
+            action = 'storevehicle',
+            plate = vehicleProps.plate,
+            durability = math.floor(GetVehicleEngineHealth(vehicle) or 0),
+            fuel = math.floor((vehicleProps.fuelLevel or GetVehicleFuelLevel(vehicle) or 0) + 0.5)
         })
 
 -- * optional หมายถึงจะใส่หรือไม่ใส่ก็ได้
@@ -988,11 +989,11 @@ function SpawnVehicle(vehicle, plate, damage)
 		Wait(10)
 		local veh = GetVehiclePedIsUsing(PlayerPedId())
 		SetEntityAlpha(veh, 121, false)
-        exports['Assist_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
+        exports['ssr_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
 
 		Wait(6000)
 		ResetEntityAlpha(veh)
-        exports['Assist_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
+        exports['ssr_legacyfuel']:SetFuel(veh, vehicle.fuelLevel)
         dprint(("[garage] SpawnVehicle -> %s fuel=%s"):format(tostring(Getplate), tostring(vehicle.fuelLevel)))
 
 		SetLocalPlayerAsGhost(false)
@@ -1150,12 +1151,11 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                             SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage)
                             Wait(1000)
                             sendDiscordLog({
-                                webhook = 'garage_pound',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                                title = 'พาวยานพาหนะ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                                description = '```\nทำการพาวรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                                color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                                screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                                -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                                webhook = 'garage_pound',
+                                action = 'garage_pound',
+                                plate = tableData.plate,
+                                durability = math.floor(damage.engine or 0),
+                                fuel = math.floor((damage.fuel or 0) + 0.5)
                             })
                             dprint(("[garage] spawnvehicle (pound) -> %s"):format(tableData.plate))
                         end
@@ -1205,12 +1205,11 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     --     screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
                     -- })
                     sendDiscordLog({
-                        webhook = 'deposit_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                        title = 'จุดฝากรถ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                        description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                        color = 'ff0000',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                        screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                        -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                        webhook = 'garage_spawn',
+                        action = 'garage_spawn',
+                        plate = tableData.plate,
+                        durability = math.floor(damage.engine or 0),
+                        fuel = math.floor((damage.fuel or 0) + 0.5)
                     })
                     dprint(("[garage] spawnvehicle (deposit-out) -> %s"):format(tableData.plate))
                 
@@ -1242,12 +1241,11 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     dprint(("[garage] spawnvehicle (garage-out) -> %s"):format(tableData.plate))
                     Wait(1000)
                     sendDiscordLog({
-                        webhook = 'garage_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
-                        title = 'การาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
-                        description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
-                        color = '5dff00',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
-                        screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
-                        -- Screenshot สามารถใช้ได้แค่ฝั่ง Client เท่านั้น และต้องการ Resource: screenshot-basic
+                        webhook = 'garage_spawn',
+                        action = 'garage_spawn',
+                        plate = tableData.plate,
+                        durability = math.floor(damage.engine or 0),
+                        fuel = math.floor((damage.fuel or 0) + 0.5)
                     })
                 end
             end,'none')
@@ -1313,7 +1311,7 @@ RegisterNUICallback('exit', function(data,cb)
 end)
 
 function SetDamage(callback_vehicle, damage)
-    print(ESX.DumpTable(damage))
+    dprint(ESX.DumpTable(damage))
 	SetVehicleEngineHealth(callback_vehicle, damage.engine + 0.0 or 1000.0)
     if damage.health_body then
 	    SetVehicleBodyHealth(callback_vehicle, damage.health_body + 0.0 or 1000.0)

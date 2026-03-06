@@ -32,6 +32,7 @@ server_scripts {
 	'config.poundDetail.lua',
 	'config.garageDetail.lua',
 	'config.depositvehicle.lua',
+	'config.webhook.lua',
 	'server/server.lua'
 }
 
