@@ -47,6 +47,5 @@ client_scripts {
 
 dependencies {
 	'es_extended',
-	'DTT_3d',
 	-- 'esx_vehicleshop'
 }

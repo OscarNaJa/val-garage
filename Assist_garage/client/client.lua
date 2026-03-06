@@ -36,6 +36,15 @@ createdProps = {}
 
 local ResourceName = GetCurrentResourceName()
 
+local function sendDiscordLog(payload)
+    local ok = pcall(function()
+        return exports.nc_discordlogs:Discord(payload)
+    end)
+    if not ok then
+        dprint("[garage] nc_discordlogs:Discord export unavailable, skip log")
+    end
+end
+
 Citizen.CreateThread(function()
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(l) ESX = l end)
@@ -398,7 +407,7 @@ StoreVehicle_deposit = function (id_deposit)
         local tableVehicle = checkCanDeposit(vehicleProps.plate, vehicleProps, id_deposit)
         if tableVehicle then 
             SaveDamage(vehicle, vehicleProps)
-            exports.nc_discordlogs:Discord({
+            sendDiscordLog({
                 webhook = 'StoreVehicle_deposit',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                 title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                 description = '```ผู้เล่นได้ทำการฝากรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าจุดฝาก '..Config.depositvehicle[id_deposit].Label..'```',  -- คำอธิบายรายละเอียด (optional)
@@ -842,7 +851,7 @@ function StoreOwnedVehicleMenu()
 	local vehicle =	GetVehiclePedIsIn(playerPed, false)
 	local vehicleProps  = ESX.Game.GetVehicleProperties(vehicle)
     if checkOwner(vehicleProps.plate,vehicleProps.model) then
-        exports.nc_discordlogs:Discord({
+        sendDiscordLog({
             webhook = 'storevehicle',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
             title = 'เก็บรถเข้าการาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
             description = '```ผู้เล่นได้ทำการเก็บรถ '..GetDisplayNameFromVehicleModel(vehicleProps.model)..' ทะเบียน '..vehicleProps.plate..' เข้าการาจ```',  -- คำอธิบายรายละเอียด (optional)
@@ -1111,7 +1120,7 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                             -- * optional หมายถึงจะใส่หรือไม่ใส่ก็ได้
                             SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage)
                             Wait(1000)
-                            exports.nc_discordlogs:Discord({
+                            sendDiscordLog({
                                 webhook = 'garage_pound',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                                 title = 'พาวยานพาหนะ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                                 description = '```\nทำการพาวรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
@@ -1159,14 +1168,14 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     end
                     SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage)
                     Wait(1000)
-                    -- exports.nc_discordlogs:Discord({
+                    -- sendDiscordLog({
                     --     webhook = 'deposit_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                     --     title = 'จุดฝากรถ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                     --     description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
                     --     color = '#6fa8dc',  -- สีของ Embed (optional) เป็น Hex Code | Default: 'ffffff'
                     --     screenshot = true  -- แสดง Screenshot ของผู้เล่น (optional)
                     -- })
-                    exports.nc_discordlogs:Discord({
+                    sendDiscordLog({
                         webhook = 'deposit_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                         title = 'จุดฝากรถ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                         description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
@@ -1203,7 +1212,7 @@ RegisterNUICallback('spawnvehicle', function(data,cb)
                     SpawnVehicle(json.decode(tableData.vehicle),tableData.plate,damage) 
                     dprint(("[garage] spawnvehicle (garage-out) -> %s"):format(tableData.plate))
                     Wait(1000)
-                    exports.nc_discordlogs:Discord({
+                    sendDiscordLog({
                         webhook = 'garage_spawn',  -- ใส่ชื่อ webhook ที่ต้องการใน Config.Webhooks
                         title = 'การาจ',  -- หัวเรื่องที่ต้องการแสดงใน discord
                         description = '```\nทำการเบิกรถ ทะเบียน: '..tableData.plate..'\n```',  -- คำอธิบายรายละเอียด (optional)
