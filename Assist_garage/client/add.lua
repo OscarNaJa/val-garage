@@ -225,36 +225,37 @@ local function clearGhostAndAlpha(ent)
     end
 end
 
-local lastVeh = 0
-local inGhostZone = false
-local ghostOwned = false -- เราเป็นคนเปิด ghost อยู่ไหม
+local function isInSpawnGhostRange(coords)
+    local defaultRadius = (Config.SpawnMarker and Config.SpawnMarker.x) or 5.0
 
-local function setAlphaSafe(ent, alpha)
-    if ent ~= 0 and DoesEntityExist(ent) then
-        if GetEntityAlpha(ent) ~= alpha then
-            SetEntityAlpha(ent, alpha, false)
-        end
-    end
-    -- เปิด ghost ถ้ายังไม่ได้เปิดโดยเราเอง
-    if not ghostOwned then
-        SetLocalPlayerAsGhost(true)
-        ghostOwned = true
-    end
-end
-
-local function clearGhostAndAlpha(ent)
-    -- รีเซ็ตความโปร่งใสของรถ (ถ้ารถยังอยู่)
-    if ent ~= 0 and DoesEntityExist(ent) then
-        if GetEntityAlpha(ent) ~= 255 then
-            ResetEntityAlpha(ent)
+    for _, cfg in ipairs(Config.garageDetail or {}) do
+        if cfg.spawnlocation then
+            local radius = cfg.Radius or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
         end
     end
 
-    -- ปลด ghost ที่เราตั้ง
-    if ghostOwned then
-        SetLocalPlayerAsGhost(false)
-        ghostOwned = false
+    for _, cfg in ipairs(Config.poundDetail or {}) do
+        if cfg.spawnlocation then
+            local radius = cfg.Radius or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
+        end
     end
+
+    for _, cfg in ipairs(Config.depositvehicle or {}) do
+        if cfg.spawnlocation then
+            local radius = cfg.distDelete or defaultRadius
+            if #(coords - cfg.spawnlocation) <= radius then
+                return true
+            end
+        end
+    end
+
+    return false
 end
 
 -- helper เอาไว้เรียก export ให้ถูกจำนวนพารามิเตอร์
@@ -598,75 +599,53 @@ Citizen.CreateThread(function()
             end
         end
 
-        -- ====== deposit zone / ghost logic ======
+        -- ====== deposit marker tracking ======
         local currentDepositMarker, depositDistance = GetClosestMarker(playerCoords, DepositlocationDetailIndex)
-        local mydimen = getCurrentDimension()
-        if not isStoryDimension(mydimen) then
-            if currentDepositMarker and depositDistance < 150.0 then
-                local cfg = Config.depositvehicle[currentDepositMarker]
-                local triggerRadius = (cfg and cfg.distDelete or 0.0) + 15.0
-                local shouldGhost = false
-                if veh ~= 0 and cfg and cfg.active and cfg.GhostZone and (depositDistance < triggerRadius) then
-                    shouldGhost = true
-                end
-
-                -- เข้าโซน ghost ครั้งแรก
-                if shouldGhost and not inGhostZone then
-                    inGhostZone = true
-                    setAlphaSafe(veh, 150)
-                    lastVeh = veh
-                end
-
-                -- อยู่ในโซนต่อเนื่อง
-                if inGhostZone and shouldGhost then
-                    -- สลับรถในโซน
-                    if veh ~= 0 and veh ~= lastVeh then
-                        clearGhostAndAlpha(lastVeh)
-                        setAlphaSafe(veh, 150)
-                        lastVeh = veh
-                    end
-
-                    -- ลงรถ (veh == 0)
-                    if veh == 0 and lastVeh ~= 0 then
-                        clearGhostAndAlpha(lastVeh)
-                        lastVeh = 0
-                    end
-                end
-
-                -- ออกจากเงื่อนไข ghost (ยังอยู่ในระยะ 150.0 แต่มันไม่ควร ghost แล้ว เช่น cfg.inactive)
-                if inGhostZone and not shouldGhost then
-                    inGhostZone = false
-                    clearGhostAndAlpha(lastVeh)
-                    lastVeh = 0
-                end
-
-                -- track deposit marker state
-                if not hasEnteredDepositMarker then
-                    hasEnteredDepositMarker = true
-                    lastDepositMarker = currentDepositMarker
-                elseif lastDepositMarker ~= currentDepositMarker then
-                    lastDepositMarker = currentDepositMarker
-                end
-
-            else
-                -- ไปไกลกว่า 150.0 / ไม่มี deposit เลย
-                if inGhostZone then
-                    inGhostZone = false
-                    clearGhostAndAlpha(lastVeh)
-                    lastVeh = 0
-                else
-                    -- failsafe เพิ่มเติม: ถ้าเราไม่อยู่โซนแล้ว แต่ยัง ghostOwned=true (เช่นรถโดนลบทิ้งกลางระหว่าง if)
-                    if ghostOwned then
-                        clearGhostAndAlpha(lastVeh)
-                        lastVeh = 0
-                    end
-                end
-
-                if hasEnteredDepositMarker then
-                    hasEnteredDepositMarker = false
-                    lastDepositMarker = nil
-                end
+        if currentDepositMarker and depositDistance < 150.0 then
+            if not hasEnteredDepositMarker then
+                hasEnteredDepositMarker = true
+                lastDepositMarker = currentDepositMarker
+            elseif lastDepositMarker ~= currentDepositMarker then
+                lastDepositMarker = currentDepositMarker
             end
+        else
+            if hasEnteredDepositMarker then
+                hasEnteredDepositMarker = false
+                lastDepositMarker = nil
+            end
+        end
+
+        -- ====== spawn zone ghost logic (กันรถเบิกรถซ้อนกัน) ======
+        local mydimen = getCurrentDimension()
+        local shouldGhost = (veh ~= 0) and (not isStoryDimension(mydimen)) and isInSpawnGhostRange(playerCoords)
+
+        if shouldGhost and not inGhostZone then
+            inGhostZone = true
+            setAlphaSafe(veh, 150)
+            lastVeh = veh
+        end
+
+        if inGhostZone and shouldGhost then
+            if veh ~= 0 and veh ~= lastVeh then
+                clearGhostAndAlpha(lastVeh)
+                setAlphaSafe(veh, 150)
+                lastVeh = veh
+            end
+
+            if veh == 0 and lastVeh ~= 0 then
+                clearGhostAndAlpha(lastVeh)
+                lastVeh = 0
+                inGhostZone = false
+            end
+        end
+
+        if inGhostZone and not shouldGhost then
+            inGhostZone = false
+            clearGhostAndAlpha(lastVeh)
+            lastVeh = 0
+        elseif (not inGhostZone) and ghostOwned then
+            clearGhostAndAlpha(lastVeh)
+            lastVeh = 0
         end
     end
 end)
