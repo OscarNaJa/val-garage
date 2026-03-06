@@ -49,6 +49,14 @@ local function notifyError()
     })
 end
 
+local function notifyNotOwner()
+    exports['ssr_notify']:sendAlert({
+        title = 'การาจ',
+        msg = 'คุณไม่ใช่เจ้าของรถ',
+        type = 'error'
+    })
+end
+
 local function canOpenTrunk(stored)
     if not stored then return false end
     if stored.type and stored.type ~= 'car' then return false end
@@ -889,6 +897,8 @@ function StoreOwnedVehicleMenu()
         TriggerServerEvent(ResourceName..':setStateVehicle', vehicleProps.plate, true, vehicleProps)
         ESX.Game.DeleteVehicle(vehicle)
         dprint(("[garage] storeOwned -> %s"):format(vehicleProps.plate))
+    else
+        notifyNotOwner()
     end
     CurrentPoint = nil
 end
