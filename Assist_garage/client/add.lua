@@ -370,8 +370,7 @@ Citizen.CreateThread(function()
                             local cfg = Config.garageDetail[id]
                             local radius = (cfg and cfg.DelRadius) or 2.0
                             -- print("radius:", radius)
-                            local vehicletype = cfg.vehicletype or 'car'
-                            local markerType = Config.MarkerType[vehicletype] or 36
+                            local markerType = Config.DeleteMarker.type or 6
                             local colorMarker = {r = Config.DeleteMarker.r, g = Config.DeleteMarker.g, b = Config.DeleteMarker.b, a = 100}
                             local colorLine   = {r = Config.DeleteMarker.r, g = Config.DeleteMarker.g, b = Config.DeleteMarker.b, a = 255}
 
@@ -382,10 +381,10 @@ Citizen.CreateThread(function()
                                     location.x, location.y, location.z,
                                     0.0, 0.0, 0.0,
                                     0.0, 0.0, 0.0,
-                                    1.0, 1.0, 1.0,
-                                    colorMarker.r, colorMarker.g, colorMarker.b,
-                                    colorMarker.a * 3,
-                                    true, true, 2, false, nil, nil, false
+                                    radius, radius, Config.DeleteMarker.z or 0.30,
+                                    255, 51, 51,
+                                    math.min((Config.DeleteMarker.a or 100) * 2, 255),
+                                    false, true, 2, false, nil, nil, false
                                 )
                             end
                         end

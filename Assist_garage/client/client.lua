@@ -78,9 +78,28 @@ local function canOpenTrunk(stored)
 end
 
 local function getVehicleImageConfig(model)
+    if not Config.VehicleImageMap then return nil end
+
     local key = string.lower(tostring(model or ''))
-    local cfg = Config.VehicleImageMap and Config.VehicleImageMap[key] or nil
-    return cfg
+    if Config.VehicleImageMap[key] then
+        return Config.VehicleImageMap[key]
+    end
+
+    local modelHash = tonumber(model) or GetHashKey(tostring(model or ''))
+    if not modelHash or modelHash == 0 then return nil end
+
+    local displayKey = string.lower(GetDisplayNameFromVehicleModel(modelHash) or '')
+    if displayKey ~= '' and Config.VehicleImageMap[displayKey] then
+        return Config.VehicleImageMap[displayKey]
+    end
+
+    for mapKey, cfg in pairs(Config.VehicleImageMap) do
+        if GetHashKey(mapKey) == modelHash then
+            return cfg
+        end
+    end
+
+    return nil
 end
 
 Citizen.CreateThread(function()
@@ -554,7 +573,7 @@ openGarage = function(current_point,current_type,job)
                                     vehiclename = vehiclename,
                                     engine = healthEngine/10,
                                     fuel = fuel,
-                                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                     weight = 0,
                                     class = GetCarTypeToNui(vehiclemodel),
                                     img = GetCarTypeToNuiImage(vehiclemodel),
@@ -573,7 +592,7 @@ openGarage = function(current_point,current_type,job)
                                 vehiclename = vehiclename,
                                 engine = healthEngine/10,
                                 fuel = fuel,
-                                modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                 weight = 0,
                                 class = GetCarTypeToNui(vehiclemodel),
                                 img = GetCarTypeToNuiImage(vehiclemodel),
@@ -593,7 +612,7 @@ openGarage = function(current_point,current_type,job)
                                 vehiclename = vehiclename,
                                 engine = healthEngine/10,
                                 fuel = fuel,
-                                modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                                modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                                 weight = 0,
                                 class = GetCarTypeToNui(vehiclemodel),
                                 img = GetCarTypeToNuiImage(vehiclemodel),
@@ -619,7 +638,7 @@ openGarage = function(current_point,current_type,job)
                             vehiclename = vehiclename,
                             engine = healthEngine / 10,
                             fuel = fuel,
-                            modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                            modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                             weight = 0,
                             class = GetCarTypeToNui(vehiclemodel),
                             img = GetCarTypeToNuiImage(vehiclemodel),
@@ -641,10 +660,11 @@ openGarage = function(current_point,current_type,job)
             end
         end 
     else 
-        for _ , v in pairs(Mystored) do 
-            if v.deposit ~= nil and v.deposit == current_type then 
-                local vehiclemodel = json.decode(v.vehicle).model 
-                local vehiclename = GetDisplayNameFromVehicleModel(vehiclemodel)
+        for _ , v in pairs(Mystored) do
+            if v.deposit ~= nil and v.deposit == current_type then
+                local vehiclemodel = json.decode(v.vehicle).model
+                local visualCfg = getVehicleImageConfig(vehiclemodel)
+                local vehiclename = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel)
                 local healthEngine = json.decode(v.health_vehicles).engine
                 local fuel = json.decode(v.health_vehicles).fuel
                 local maxSpeed = (GetVehicleModelEstimatedMaxSpeed(vehiclemodel)/GetVehicleClassEstimatedMaxSpeed(GetVehicleClassFromName(vehiclemodel)))*100
@@ -660,7 +680,7 @@ openGarage = function(current_point,current_type,job)
                     vehiclename = vehiclename,
                     engine = healthEngine/10,
                     fuel = fuel,
-                    modelname = GetDisplayNameFromVehicleModel(vehiclemodel),
+                    modelname = (visualCfg and visualCfg.name) or GetDisplayNameFromVehicleModel(vehiclemodel),
                     class = GetCarTypeToNui(vehiclemodel),
                     weight = 0,
                     img = GetCarTypeToNuiImage(vehiclemodel),
