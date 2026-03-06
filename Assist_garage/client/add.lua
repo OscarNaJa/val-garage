@@ -707,8 +707,12 @@ function hasJob(jobReq, myJob)
         return false
     end
 end
+local function isInteractPressed()
+    return IsControlJustPressed(0, 38) or IsControlJustReleased(0, 38)
+end
 
--- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (DDT_3d)
+
+-- โหมดโปร่งใส/ghost ขณะอยู่ในระยะ UI (DTT_3d)
 -- local isGhostActive = false
 -- local ghostVeh = 0         -- รถคันที่กำลังถูกทำให้ใสอยู่
 
@@ -809,7 +813,7 @@ Citizen.CreateThread(function()
                             Config.garageDetail[lastDeleteMarker].deletelocation.z - 0.3
                         )
                         text = 'STORED VEHICLE'
-                        local success = exports["DDT_3d"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = Config.garageDetail[lastDeleteMarker].deletelocation,
                             coords = Config.garageDetail[lastDeleteMarker].deletelocation,
                             keyNum = 38,
@@ -819,7 +823,7 @@ Citizen.CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             -- if GetPedInVehicleSeat(GetVehiclePedIsIn(ped), -1) == ped then
                                 if not fistLoad then
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -858,7 +862,7 @@ Citizen.CreateThread(function()
                         )
                         -- print(Config.SpawnMarker.x)
                         text = 'OPEN GARAGE'
-                        local success = exports["DDT_3d"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = gpos,
                             coords = gpos,
                             keyNum = 38,
@@ -868,7 +872,7 @@ Citizen.CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             if not fistLoad then
                                 SetNuiFocus(true, true)
                                 TriggerServerEvent(ResourceName..':reloadData')
@@ -915,7 +919,7 @@ Citizen.CreateThread(function()
                             pressE = true
                             mrcoords = vector3(poundConfig.location.x, poundConfig.location.y, poundConfig.location.z - 0.3)
                             text = 'OPEN POUND VEHICLE MENU'
-                            local success = exports["DDT_3d"]:showInteractionUI({
+                            local success = exports["DTT_3d"]:showInteractionUI({
                                 id = poundConfig.location,
                                 coords = poundConfig.location,
                                 keyNum = 38,
@@ -925,7 +929,7 @@ Citizen.CreateThread(function()
                                 duration = 600,
                                 type = 2
                             })
-                            if success then
+                            if success and isInteractPressed() then
                                 if not fistLoad then
                                     SetNuiFocus(true, true)
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -1039,7 +1043,7 @@ CreateThread(function()
                         --     90,false,false,2,false,false,false,false
                         -- )
                         if not cfg.autodelete then
-                            local ok = exports["DDT_3d"]:showInteractionUI({
+                            local ok = exports["DTT_3d"]:showInteractionUI({
                                 id = cfg.deletelocation,
                                 coords = coords,
                                 keyNum = 38,
@@ -1049,7 +1053,7 @@ CreateThread(function()
                                 duration = 600,
                                 type = 2
                             })
-                            if ok then
+                            if ok and isInteractPressed() then
                                 dprint("[Deposit] Success: hold E to deposit")
                                 if not fistLoad then 
                                     TriggerServerEvent(ResourceName..':reloadData')
@@ -1084,7 +1088,7 @@ CreateThread(function()
                     dprint("[DimCheck-foot]", isInDimension(getCurrentDimension()))
                     if (CurrentPoint == nil) and isInDimension(getCurrentDimension()) then
                         sleep = 0
-                        local success = exports["DDT_3d"]:showInteractionUI({
+                        local success = exports["DTT_3d"]:showInteractionUI({
                             id = cfg.location,
                             coords = cfg.location,
                             keyNum = 38,
@@ -1094,7 +1098,7 @@ CreateThread(function()
                             duration = 600,
                             type = 2
                         })
-                        if success then
+                        if success and isInteractPressed() then
                             if not fistLoad then
                                 SetNuiFocus(true,true)
                                 TriggerServerEvent(ResourceName..':reloadData')
