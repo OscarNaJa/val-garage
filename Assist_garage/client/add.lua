@@ -196,21 +196,37 @@ markerRadius = 30.0
 local lastVeh = 0
 local inGhostZone = false
 local ghostOwned = false -- เราเป็นคนเปิด ghost อยู่ไหม
+local lastNoCollisionScanAt = 0
 
 local function applyNoCollisionWithNearbyVehicles(ent)
     if ent == 0 or not DoesEntityExist(ent) then return end
 
+    local now = GetGameTimer()
+    local scanInterval = Config.GhostNoCollisionScanInterval or 250
+    if (now - lastNoCollisionScanAt) < scanInterval then
+        return
+    end
+    lastNoCollisionScanAt = now
+
     local radius = Config.GhostNoCollisionRadius or Config.GhostRadius or 7.5
+    local radius2 = radius * radius
+    local maxProcess = Config.GhostNoCollisionMaxVehicles or 30
     local myCoords = GetEntityCoords(ent)
     local vehicles = GetGamePool('CVehicle')
+    local processed = 0
 
     for i = 1, #vehicles do
         local other = vehicles[i]
         if other ~= ent and DoesEntityExist(other) then
-            local dist = #(myCoords - GetEntityCoords(other))
-            if dist <= radius then
+            local o = GetEntityCoords(other)
+            local dist2 = Vdist2(myCoords.x, myCoords.y, myCoords.z, o.x, o.y, o.z)
+            if dist2 <= radius2 then
                 SetEntityNoCollisionEntity(ent, other, true)
                 SetEntityNoCollisionEntity(other, ent, true)
+                processed = processed + 1
+                if processed >= maxProcess then
+                    break
+                end
             end
         end
     end

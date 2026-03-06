@@ -14,24 +14,27 @@ local function getPlayer(src)
     return ESX.GetPlayerFromId(src)
 end
 
-local function fetchVehicles(identifier)
-    local result = MySQL.Sync.fetchAll('SELECT owner, plate, vehicle, type, stored, police, job, vehiclename, health_vehicles, deposit FROM owned_vehicles WHERE owner = @owner', { ['@owner'] = identifier })
-    local list = {}
-    for i = 1, #result do
-        local r = result[i]
-        list[#list+1] = {
-            plate = r.plate,
-            stored = r.stored == 1 or r.stored == true,
-            police = r.police or 0,
-            job = r.job or '',
-            type = r.type or 'car',
-            vehiclename = r.vehiclename,
-            vehicle = r.vehicle,
-            health_vehicles = r.health_vehicles,
-            deposit = r.deposit
-        }
-    end
-    return list
+local function fetchVehicles(identifier, cb)
+    MySQL.Async.fetchAll('SELECT owner, plate, vehicle, type, stored, police, job, vehiclename, health_vehicles, deposit FROM owned_vehicles WHERE owner = @owner', {
+        ['@owner'] = identifier
+    }, function(result)
+        local list = {}
+        for i = 1, #(result or {}) do
+            local r = result[i]
+            list[#list+1] = {
+                plate = r.plate,
+                stored = r.stored == 1 or r.stored == true,
+                police = r.police or 0,
+                job = r.job or '',
+                type = r.type or 'car',
+                vehiclename = r.vehiclename,
+                vehicle = r.vehicle,
+                health_vehicles = r.health_vehicles,
+                deposit = r.deposit
+            }
+        end
+        cb(list)
+    end)
 end
 
 local function sendWebhook(url, title, description, color)
@@ -87,8 +90,9 @@ AddEventHandler(ResourceName..':reloadData', function()
     local src = source
     local xPlayer = getPlayer(src)
     if not xPlayer then return end
-    local vehicles = fetchVehicles(xPlayer.getIdentifier() or xPlayer.identifier)
-    TriggerClientEvent(ResourceName..':reloadData:client', src, vehicles)
+    fetchVehicles(xPlayer.getIdentifier() or xPlayer.identifier, function(vehicles)
+        TriggerClientEvent(ResourceName..':reloadData:client', src, vehicles)
+    end)
 end)
 
 RegisterServerEvent(ResourceName..':setStateVehicle')
