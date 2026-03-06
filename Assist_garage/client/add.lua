@@ -368,7 +368,7 @@ Citizen.CreateThread(function()
                         local inout, dis = distance(coords, location, 10.0)
                         if inout then
                             local cfg = Config.garageDetail[id]
-                            local radius = (cfg and cfg.DelRadius) or 2.0
+                            local radius = (cfg and cfg.DelRadius) or Config.DeleteMarker.x or 2.0
                             -- print("radius:", radius)
                             local markerType = Config.DeleteMarker.type or 6
                             local colorMarker = {r = Config.DeleteMarker.r, g = Config.DeleteMarker.g, b = Config.DeleteMarker.b, a = 100}
