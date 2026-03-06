@@ -251,7 +251,7 @@ local function isInSpawnGhostRange(coords)
 
     for _, cfg in ipairs(Config.garageDetail or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.GhostRadius or cfg.Radius or defaultRadius
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.Radius or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end
@@ -260,7 +260,7 @@ local function isInSpawnGhostRange(coords)
 
     for _, cfg in ipairs(Config.poundDetail or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.GhostRadius or cfg.Radius or defaultRadius
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.Radius or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end
@@ -269,7 +269,7 @@ local function isInSpawnGhostRange(coords)
 
     for _, cfg in ipairs(Config.depositvehicle or {}) do
         if cfg.spawnlocation then
-            local radius = cfg.GhostRadius or cfg.distDelete or defaultRadius
+            local radius = (Config.GhostRadius and Config.GhostRadius > 0 and Config.GhostRadius) or cfg.GhostRadius or cfg.distDelete or defaultRadius
             if #(coords - cfg.spawnlocation) <= radius then
                 return true
             end

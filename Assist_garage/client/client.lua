@@ -40,6 +40,34 @@ local function sendDiscordLog(payload)
     return
 end
 
+local function notifyError()
+    exports['ssr_notify']:sendAlert({
+        title = 'การาจ',
+        msg = 'รถคันนี้ไม่สามารถเปิดท้ายรถได้',
+        type = 'error'
+    })
+end
+
+local function canOpenTrunk(stored)
+    if not stored then return false end
+    if stored.type and stored.type ~= 'car' then return false end
+
+    local ok, props = pcall(function()
+        return json.decode(stored.vehicle)
+    end)
+    if not ok or type(props) ~= 'table' then return false end
+
+    local model = props.model
+    if not model then return false end
+
+    local class = GetVehicleClassFromName(model)
+    if class == 8 or class == 13 or class == 14 or class == 15 or class == 16 or class == 21 then
+        return false
+    end
+
+    return true
+end
+
 Citizen.CreateThread(function()
     while ESX == nil do
         TriggerEvent('esx:getSharedObject', function(l) ESX = l end)
@@ -974,8 +1002,14 @@ function SpawnVehicle(vehicle, plate, damage)
 end
 
 RegisterNUICallback('trunkopen', function(data,cb)
-    for _ , v in pairs(Mystored) do 
+    for _ , v in pairs(Mystored) do
         if v.plate == data.plate then
+            if not canOpenTrunk(v) then
+                notifyError()
+                cb('fail')
+                return
+            end
+
             if exports["mythic_progbar"]:isDoingAction() then
                 TriggerEvent('pNotify:SendNotification', { type = 'error', text = 'กรุณาลองใหม่ภายหลัง' })
                 return
